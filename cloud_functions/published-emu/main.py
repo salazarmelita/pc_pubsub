@@ -22,33 +22,6 @@ def topic_exists(topic_name):
     except Exception as e:
         return False
     
-def get_queue_status(topic_name):
-    try:
-        client = pubsub_v1.PublisherClient()
-        topic_path = client.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-        topic = client.get_topic(request={"topic": topic_path})
-
-        # Obtener la cantidad de mensajes en la cola
-        message_count = topic.message_storage_policy.allowed_persistence_regions[0].message_storage_bytes
-        return message_count
-
-        # client = pubsub_v1.SubscriberClient()
-        # topic_path = client.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-        # topic = client.get_topic(request={"topic": topic_path})
-
-        # # Obtener la cantidad de mensajes en la cola
-        # message_count = 0
-        # for subscription_name in topic.subscriptions:
-        #     subscription_path = client.subscription_path(os.getenv('GCLOUD_PROJECT'), subscription_name)
-        #     subscription = client.get_subscription(request={"subscription": subscription_path})
-        #     message_count += subscription.message_count
-
-        return message_count
-
-    except Exception as e:
-        print(f"Error al obtener el estado de la cola: {e}")
-        return None
-
 @app.post("/publish")
 def publish():
     body = flask.request.get_json()
@@ -61,12 +34,6 @@ def publish():
         if not topic_name or not message:
             return jsonify({"error": "Missing topic_name or message in request"}), 400
         
-        queue_status = get_queue_status(topic_name)
-        if queue_status is not None:
-            print(f"[I] Estado de la cola para el tema {topic_name}: {queue_status} mensajes en cola")
-        else:
-            print("[I] No se pudo obtener el estado de la cola.")
-
         if not topic_exists(topic_name):
             publisher = pubsub_v1.PublisherClient()
             topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
@@ -74,12 +41,6 @@ def publish():
         
         publisher = pubsub_v1.PublisherClient()
         topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-
-        queue_status = get_queue_status(topic_name)
-        if queue_status is not None:
-            print(f"[II] Estado de la cola para el tema {topic_name}: {queue_status} mensajes en cola")
-        else:
-            print("[II] No se pudo obtener el estado de la cola.")
 
         message_json = json.dumps(message)
         message_bytes = message_json.encode('utf-8')
