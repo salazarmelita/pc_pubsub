@@ -26,33 +26,65 @@ def topic_exists(topic_name):
 def publish():
     body = flask.request.get_json()
     print(body)
-
-    try:
-        topic_name = body.get("topic_name")
-        message = body.get("message")
-
-        if not topic_name or not message:
-            return jsonify({"error": "Missing topic_name or message in request"}), 400
+    project_id = os.getenv('GCLOUD_PROJECT')
+    topic_id = body.get("topic_name")
+    subscription_id = body.get("subscription_name")
+    endpoint = "https://us-central1-andreslab-50edf.cloudfunctions.net/subscriber_emu"
+    
+    if not topic_id:
+        return jsonify({"error": "Missing topic_name or message in request"}), 400
         
-        if not topic_exists(topic_name):
-            publisher = pubsub_v1.PublisherClient()
-            topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-            publisher.create_topic(request={"name": topic_path})
-        
+    if not topic_exists(topic_id):
         publisher = pubsub_v1.PublisherClient()
-        topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
+        topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_id)
+        publisher.create_topic(request={"name": topic_path})
+    
+        try:
+            publisher = pubsub_v1.PublisherClient()
+            subscriber = pubsub_v1.SubscriberClient()
+            topic_path = publisher.topic_path(project_id, topic_id)
+            subscription_path = subscriber.subscription_path(project_id, subscription_id)
 
-        message_json = json.dumps(message)
-        message_bytes = message_json.encode('utf-8')
-        future = publisher.publish(topic_path, message_bytes)
-        future.result()
-        return jsonify({"status": "success"})
+            push_config = pubsub_v1.types.PushConfig(push_endpoint=endpoint)
 
-    except Exception as e:
-        print(f"Error initializing Pub/Sub client: {e}")
+            # Wrap the subscriber in a 'with' block to automatically call close() to
+            # close the underlying gRPC channel when done.
+            with subscriber:
+                subscription = subscriber.create_subscription(
+                    request={
+                        "name": subscription_path,
+                        "topic": topic_path,
+                        "push_config": push_config,
+                    }
+                )
+
+            print(f"Push subscription created: {subscription}.")
+            print(f"Endpoint for subscription is: {endpoint}")
+    #     topic_name = body.get("topic_name")
+    #     message = body.get("message")
+
+    #     if not topic_name or not message:
+    #         return jsonify({"error": "Missing topic_name or message in request"}), 400
+        
+    #     if not topic_exists(topic_name):
+    #         publisher = pubsub_v1.PublisherClient()
+    #         topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
+    #         publisher.create_topic(request={"name": topic_path})
+        
+    #     publisher = pubsub_v1.PublisherClient()
+    #     topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
+
+    #     message_json = json.dumps(message)
+    #     message_bytes = message_json.encode('utf-8')
+    #     future = publisher.publish(topic_path, message_bytes)
+    #     future.result()
+    #     return jsonify({"status": "success"})
+
+        except Exception as e:
+            print(f"Error initializing Pub/Sub client: {e}")
 
 @https_fn.on_request(max_instances=10, timeout_sec=120, memory=256, min_instances=0)
-def pusblisher_emu(req: https_fn.Request) -> https_fn.Response:
+def publisher_emu(req: https_fn.Request) -> https_fn.Response:
     try:
         with app.request_context(req.environ):
             return app.full_dispatch_request()

@@ -1,48 +1,35 @@
 import os
 from google.cloud import pubsub_v1
-from firebase_functions import pubsub_fn
+from concurrent.futures import TimeoutError
 
-def acknowledge_message(event_id, subscription_path):
-    # Configurar el cliente de Pub/Sub
+# Obtiene el ID del proyecto de Firebase
+project_id = os.getenv('GCLOUD_PROJECT')
+
+def subscriber_emu(event, context):
+    # Nombre de la suscripción de Pub/Sub
+    subscription_id = "pokedex"
+    # Número de segundos que el suscriptor debe escuchar los mensajes
+    timeout = 5.0
+
     subscriber = pubsub_v1.SubscriberClient()
+    subscription_path = subscriber.subscription_path(project_id, subscription_id)
 
-    # Enviar el acknowledgement al servidor de Pub/Sub
-    ack_ids = [event_id]
-    subscriber.acknowledge(request={"subscription": subscription_path, "ack_ids": ack_ids})
-    print("Suscripción confirmada")
+    def callback(message: pubsub_v1.subscriber.message.Message) -> None:
+        print(f"Received {message.data!r}.")
 
-def count_unacknowledged_messages(subscription_path):
+    # Limita el suscriptor a tener solo diez mensajes pendientes a la vez.
+    flow_control = pubsub_v1.types.FlowControl(max_messages=10)
+
+    streaming_pull_future = subscriber.subscribe(
+        subscription_path, callback=callback, flow_control=flow_control
+    )
+
+    print(f"Listening for messages on {subscription_path}..\n")
+
     try:
-        # Configurar el cliente de Pub/Sub
-        subscriber = pubsub_v1.SubscriberClient()
-
-        # Obtener el estado de la suscripción
-        subscription = subscriber.get_subscription(request={"subscription": subscription_path})
-
-        # Obtener el número de mensajes no confirmados
-        unacknowledged_messages = subscription.num_undelivered_messages
-
-        print(f"Número de mensajes no confirmados en la suscripción {subscription_path}: {unacknowledged_messages}")
-    
-    except Exception as e:
-        print(f"Error al obtener el número de mensajes no confirmados: {e}")
-
-@pubsub_fn.on_message_published(topic="pokemon")
-def subscriber_emu(event: pubsub_fn.CloudEvent[pubsub_fn.MessagePublishedData]) -> None:
-    # Obtener el mensaje publicado
-    message_data = event.data.message.json
-
-    # Aquí puedes agregar la lógica para procesar el mensaje como desees
-    print(f"Mensaje recibido: {message_data}")
-    print(f"Mensaje ID: {event.data.message.message_id}")
-    print(f"Subscription path: {event.data.subscription}")
-
-
-
-
-
-    project_id = os.getenv('GCLOUD_PROJECT')
-    # Confirmar la recepción del mensaje
-    acknowledge_message(project_id, event.data.message.message_id, event.data.subscription)
-    # Contar los mensajes no confirmados
-    count_unacknowledged_messages(event.data.subscription)
+        # Cuando `timeout` no está configurado, result() bloqueará indefinidamente,
+        # a menos que se encuentre primero una excepción.
+        streaming_pull_future.result(timeout=timeout)
+    except TimeoutError:
+        streaming_pull_future.cancel()  # Desencadena el apagado.
+        streaming_pull_future.result()  # Bloquea hasta que se complete el apagado.
