@@ -57,31 +57,14 @@ def publish():
                         "push_config": push_config,
                     }
                 )
-
             print(f"Push subscription created: {subscription}.")
             print(f"Endpoint for subscription is: {endpoint}")
-    #     topic_name = body.get("topic_name")
-    #     message = body.get("message")
-
-    #     if not topic_name or not message:
-    #         return jsonify({"error": "Missing topic_name or message in request"}), 400
-        
-    #     if not topic_exists(topic_name):
-    #         publisher = pubsub_v1.PublisherClient()
-    #         topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-    #         publisher.create_topic(request={"name": topic_path})
-        
-    #     publisher = pubsub_v1.PublisherClient()
-    #     topic_path = publisher.topic_path(os.getenv('GCLOUD_PROJECT'), topic_name)
-
-    #     message_json = json.dumps(message)
-    #     message_bytes = message_json.encode('utf-8')
-    #     future = publisher.publish(topic_path, message_bytes)
-    #     future.result()
-    #     return jsonify({"status": "success"})
-
+            return jsonify({"status": "success"})
         except Exception as e:
             print(f"Error initializing Pub/Sub client: {e}")
+
+    # Add a return statement for other cases
+    return jsonify({"error": "Unknown error occurred"}), 500
 
 @https_fn.on_request(max_instances=10, timeout_sec=120, memory=256, min_instances=0)
 def publisher_emu(req: https_fn.Request) -> https_fn.Response:

@@ -2,11 +2,10 @@ import os
 from google.cloud import pubsub_v1
 from concurrent.futures import TimeoutError
 
-# Obtiene el ID del proyecto de Firebase
-project_id = os.getenv('GCLOUD_PROJECT')
+
 
 def subscriber_emu(event, context):
-    # Nombre de la suscripción de Pub/Sub
+    project_id = os.getenv('GCLOUD_PROJECT')
     subscription_id = "pokedex"
     # Número de segundos que el suscriptor debe escuchar los mensajes
     timeout = 5.0
