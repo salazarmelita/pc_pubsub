@@ -1,0 +1,12 @@
+# Firebase cache
+.firebase/
+
+# dotenv environment variables file
+.env
+env
+
+lucaplugs-sa.json
+.firebaserc
+
+firestore-debug.log
+pubsub-debug.log

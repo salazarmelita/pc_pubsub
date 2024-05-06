@@ -1,0 +1,13 @@
+venv
+.firebaserc
+
+firestore-debug.log
+pubsub-debug.log
+firebase-debug.log
+ui-debug.log
+
+__pycache__
+lucaplugs-dev-sa.json
+lucaplugs-cert-sa.json
+lucaplugs-sa.json
+.env
