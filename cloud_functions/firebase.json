@@ -11,8 +11,8 @@
       ]
     },
     {
-      "source": "subscriber-emu",
-      "codebase": "subscriber-emu",
+      "source": "pub-01",
+      "codebase": "pub-01",
       "ignore": [
         "venv",
         ".git",
@@ -21,8 +21,8 @@
       ]
     },
     {
-      "source": "published-emu",
-      "codebase": "published-emu",
+      "source": "sub-01",
+      "codebase": "sub-01",
       "ignore": [
         "venv",
         ".git",
