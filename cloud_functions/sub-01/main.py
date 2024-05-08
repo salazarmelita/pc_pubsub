@@ -38,65 +38,61 @@ def publish_message(topic_name, message):
     future = publisher.publish(topic_path, message_bytes)
     future.result()
     return
+
+@firestore.transactional
+def perform_transaction(transaction, doc_ref, current_time, pub_seconds):
+    # Calcular la diferencia de tiempo en segundos
+    current_pub_doc = list(transaction.get(doc_ref))[0]
+    current_pub = current_pub_doc.get("last_pub")
+    current_pub_format = datetime.fromisoformat(current_pub.strftime("%Y-%m-%d %H:%M:%S.%f"))
+    time_difference_seconds = (current_time - current_pub_format).total_seconds()
+    print("Tiempo transcurrido desde última publicación:", time_difference_seconds)
     
+    if time_difference_seconds > pub_seconds:
+        transaction.update(doc_ref, {"last_pub": current_time})
+        return True
+    return False
 
 @app.post("/pokedex")
 def receiver():
     try:
         #Obtener la fecha y hora actual
         current_time = datetime.now()
-
         envelope = json.loads(request.data.decode('utf-8'))
         message_codified = envelope['message']["data"]
         message_data = base64.b64decode(message_codified).decode('utf-8')
-        print(f"Data: {message_data}")
-        time.sleep(5)
 
         db = firestore.client()
         plugin_id = "qTikhWtY44z1rjX9I1C3"
-        #docs_iter = db.collection("rates").select(["rate", "dinamic", "last_pub"]).stream()
+        transaction = db.transaction()
         doc_ref = db.collection("rates").document(plugin_id)
         doc_snapshot = doc_ref.get()
-
+        #return "succes", 200
         if doc_snapshot.exists:
             doc_data = doc_snapshot.to_dict()
             dinamic = doc_data.get("dinamic")
-            last_pub = doc_data.get("last_pub")
-            print(f"Última publicación: {last_pub}")
             pub_seconds = 60.0 / dinamic
-            print(f"Diferencia entre cada publicación a una tasa de {dinamic} [mensajes/min]: {pub_seconds}")
-
-            # Calcular la diferencia de tiempo en segundos
-            last_pub_str = last_pub.strftime("%Y-%m-%d %H:%M:%S")
-            last_pub_format = datetime.fromisoformat(last_pub_str)
-            time_difference_seconds = (current_time - last_pub_format).total_seconds()
-            print("Diferencia de tiempo en relación a última publicación:", time_difference_seconds)
-
-            if isinstance(message_data, str):
+            print(f"Diferencia de tiempo entre cada publicación (tasa de {dinamic} [mensajes/min]): {pub_seconds}")
+        
+            result = perform_transaction(transaction, doc_ref, current_time, pub_seconds)
+            
+            if result:
                 message_data = json.loads(message_data)
-                
-            topic_name = message_data["type"]
-            message = {
-                "type": message_data["type"],
-                "pokemon": message_data["pokemon"],
-                "rate": f"{dinamic} msj/min"
-            }
-
-            if time_difference_seconds > pub_seconds:
+                topic_name = message_data["type"]
+                message = {
+                    "type": message_data["type"],
+                    "pokemon": message_data["pokemon"],
+                    "rate": f"{dinamic} msj/min",
+                    "count": message_data["count"]
+                }
                 publish_message(topic_name, message)
-                doc_ref.update({"last_pub": current_time})
-                print("tópico publicado dentro del rango de la tasa")
+                print(f"Mensaje publicado: {message}")
+                print(f"Tópico publicado ({topic_name}) dentro del rango de la tasa")
                 return 'success', 200
             else:
-                time.sleep(pub_seconds)
-                publish_message(topic_name, message)
-                doc_ref.update({"last_pub": current_time})
-                print("tópico publicado con delay")
-                return 'success', 200
-
+                return "error", 500
         else:
             return "error", 500
-
 
     except Exception as error:
         print(f"Error: {error}")
